@@ -6,59 +6,49 @@ from sklearn.metrics import pairwise_distances
 from forest_cluster import array_utils
 
 
-def match_leaves(X):
-    return 1 - pairwise_distances(X, metric='hamming')
+def count_shared_nodes(X_nodes):
+    """The number of shared nodes between samples at a fixed depth of a
+    decision tree.
+    """
+    return (X_nodes * X_nodes.T).toarray()
 
 
-def match_nodes(X):
-    H = (X * X.T).toarray()
-    return H
-
-def which_shared_nodes(sample_ids, node_indicator):
-    n_nodes = node_indicator.shape[1]
-
-    common_nodes = (node_indicator.toarray()[sample_ids].sum(axis=0) ==
-                    len(sample_ids))
-
-    return np.arange(n_nodes)[common_nodes]
-
-
-def what_depth(tree):
+def get_node_depths(tree):
+    """Determine the depth of a node in a decision tree."""
     n_nodes = tree.tree_.node_count
     children_left = tree.tree_.children_left
     children_right = tree.tree_.children_right
 
-    node_depth = np.zeros(shape=n_nodes, dtype=np.int64)
-    is_leaves = np.zeros(shape=n_nodes, dtype=bool)
+    node_depths = np.zeros(shape=n_nodes, dtype=np.int64)
     stack = [(0, -1)]
     while len(stack) > 0:
         node_id, parent_depth = stack.pop()
-        node_depth[node_id] = parent_depth + 1
+        node_depths[node_id] = parent_depth + 1
 
         # if we have a test node
         if (children_left[node_id] != children_right[node_id]):
             stack.append((children_left[node_id], parent_depth + 1))
             stack.append((children_right[node_id], parent_depth + 1))
-        else:
-            is_leaves[node_id] = True
 
-    return node_depth, is_leaves
+    return node_depths
 
 
-def apply(tree, X, depth=-1):
+def get_node_indicators(tree, X, depth=-1):
+    """Apply a tree to X at a specified depth. Return zero/one indicator matrix
+    of whether the sample landed in that node.
+    """
     max_depth = tree.tree_.max_depth
 
     if depth == -1 or depth > max_depth:
         depth = max_depth
-    node_depth, _ = what_depth(tree)
 
-
+    node_depths = get_node_depths(tree)
     node_indicator = tree.decision_path(X)
 
-    return node_indicator[:, node_depth == depth]
+    return node_indicator[:, node_depths == depth]
 
 
-def depth_embedding(tree, X, depth=-1):
+def apply_to_depth(tree, X, depth=-1):
     max_depth = tree.tree_.max_depth
     if depth == -1 or depth > max_depth:
         depth = max_depth
@@ -67,7 +57,7 @@ def depth_embedding(tree, X, depth=-1):
 
     node_indicators = []
     while np.any(unmatched_samples):
-        nodes = apply(tree, X, depth=depth)
+        nodes = get_node_indicators(tree, X, depth=depth)
         matched_indices = np.where(nodes.sum(axis=1) != 0)[0]
         # samples that have be matched do not need to be matched again
         array_utils.csr_assign_rows(nodes,
@@ -78,4 +68,5 @@ def depth_embedding(tree, X, depth=-1):
         depth = depth - 1
         unmatched_samples[matched_indices] = False
 
-    return array_utils.drop_zero_columns(sparse.hstack(node_indicators, format='csr'))
+    return array_utils.drop_zero_columns(
+        sparse.hstack(node_indicators, format='csr'))

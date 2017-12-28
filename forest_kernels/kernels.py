@@ -12,6 +12,7 @@ from abc import ABCMeta, abstractmethod
 
 from sklearn.base import TransformerMixin
 from sklearn.ensemble.forest import BaseForest
+from sklearn.metrics import pairwise_distances
 from sklearn.tree import DecisionTreeClassifier, ExtraTreeClassifier
 from sklearn.utils import check_array, check_random_state
 
@@ -22,67 +23,97 @@ from forest_kernels.data_generators import generate_discriminative_dataset
 __all__ = ['BaseForestKernel', 'RandomForestKernel', 'ExtraTreesKernel']
 
 
-def fixed_depth_partition(tree, X, depth='random', random_state=123):
-    # pick a random depth
-    if depth == 'random':
-        rng = check_random_state(random_state)
-        max_depth = tree.tree_.max_depth
-        depth = rng.choice(range(1, max_depth + 1))
+def sample_depths(forest, random_state=123):
+    """Randomly sample depths from a forest of decision trees. The root
+    depth (index zero) is excluded.
 
-    # get the embedding for that depth
-    node_indicator = tree_utils.depth_embedding(tree, X, depth=depth)
-    return tree_utils.match_nodes(node_indicator)
+    Parameters
+    ----------
+    forest : A class instance derived from `sklearn.ensemble.BaseForest`.
+       The ensemble of tree's whose depths are sampled.
 
-
-def all_partitions(tree, X, normalize=True):
-    n_samples = X.shape[0]
-    max_depth = tree.tree_.max_depth
-    kernel = np.zeros(shape=(n_samples, n_samples))
-    for depth in range(1, max_depth + 1):
-        node_indicator = tree_utils.depth_embedding(tree, X, depth=depth)
-        kernel += tree_utils.match_nodes(node_indicator)
-
-    if normalize:
-        kernel /= max_depth
-
-    return kernel
+    Returns
+    -------
+    tree_depths : list
+        A list of depths sampled for the tree at that index.
+    """
+    random_state = check_random_state(random_state)
+    return [random_state.choice(range(1, tree.tree_.max_depth + 1))
+            for tree in forest.estimators_]
 
 
-def random_partitions_kernel(forest, X, kernel_depth='all', random_state=123):
-    rng = check_random_state(random_state)
+def leaf_node_kernel(X_leaves):
+    """The leaf node kernel matrix induced by an ensemble of
+    decision trees.
 
-    n_partitions = 0
+   The terminal or leaf nodes of an unpruned decision tree contain only
+   a small number of observations. These observations lie in a similar
+   partition of the sample space, where 'similar' is defined by the
+   splitting criterion of the tree (gini norm, variance reduction, etc.) as
+   well as the target being classified.
+
+   These similar partitions can be used to construct a similarity measure. The
+   training data are run down each tree in the ensemble. If observations x_i
+   and x_j both land in the same leaf node, the similarity between x_i and x_j
+   is increased by one. This is done for each tree of the ensemble, so
+   that the final similarity is defined as:
+
+                  Number of leaves shared by x_i and x_j
+        K(i, j) = --------------------------------------
+                  Total number of trees in the forest.
+
+    Note that this similarity measure lies between 0 and 1.
+
+    Parameters
+    ----------
+    X_leaves : array-like, shape = [n_samples, n_estimators]
+        For each datapoint x in X and for each tree in the forest, contains
+        the index of the leaf x ends up in. The result of calling
+        `forest.apply(X)`.
+
+    Returns
+    -------
+    K : array-like, shape = [n_samples, n_samples]
+        A kernel matrix K such that K_{i, j} is the similarity between
+        the ith and jth vectors of the given leaf matrix X_leaves.
+    [1]
+    [2]
+    [3]
+
+    References
+    ----------
+    .. [1] E. Scornet, "Random Forests and Kernel Methods," in IEEE
+           Transactions on Information Theory, vol. 62, no. 3,
+           pp. 1485-1500, March 2016
+    .. [2] Tao Shi and Steve Horvath (2006) Unsupervised Learning with Random
+           Forest Predictors. Journal of Computational and Graphical
+           Statistics. Volume 15, Number 1, March 2006, pp. 118-138(21)
+    .. [3] Breiman, L. and Cutler, A. (2003), "Random Forests Manual v4.0",
+           Technical report, UC Berkeley,
+           ftp://ftp.stat.berkeley.edu/pub/users/breiman/Using_random_forests_v4.0.pdf.
+    """
+    return 1 - pairwise_distances(X_leaves, metric='hamming')
+
+
+def random_partition_kernel(forest, X, tree_depths='random', random_state=123):
+    """Random Partition Kernel induced by an ensemble of decision trees.
+    """
+    if tree_depths == 'random':
+        tree_depths = sample_depths(forest, random_state=random_state)
+
     n_samples = X.shape[0]
     kernel = np.zeros(shape=(n_samples, n_samples))
     for tree_idx, tree in enumerate(forest.estimators_):
-        if kernel_depth == 'all':
-            n_partitions += tree.tree_.max_depth
-            kernel += all_partitions(tree, X, normalize=False)
-        elif kernel_depth == 'random' or isinstance(kernel_depth, list):
-            n_partitions += 1
-            kernel += fixed_depth_partition(
-                tree, X, depth=kernel_depth[tree_idx], random_state=rng)
-        else:
-            raise ValueError('Unrecognized `depth`.')
+        node_indicator = tree_utils.apply_to_depth(
+            tree, X, depth=tree_depths[tree_idx])
+        kernel += tree_utils.count_shared_nodes(node_indicator)
 
-    return kernel / n_partitions
+    return kernel / len(forest.estimators_)
 
 
-def random_forest_kernel(forest, X, kernel_depth='all', random_state=123):
-    if isinstance(kernel_depth, numbers.Integral):
-        kernel_depth = [kernel_depth] * forest.n_estimators
-
-    if kernel_depth == 'leaves':
-        leaves = forest.apply(X)
-        return tree_utils.match_leaves(leaves)
-    elif isinstance(kernel_depth, (six.string_types, list)):
-        return random_partitions_kernel(
-            forest, X, kernel_depth=kernel_depth, random_state=random_state)
-    else:
-        raise ValueError("kernel_depth must be a string or an integer")
-
-
-class BaseForestKernel(six.with_metaclass(ABCMeta, BaseForest, TransformerMixin)):
+class BaseForestKernel(six.with_metaclass(ABCMeta,
+                                          BaseForest,
+                                          TransformerMixin)):
     @abstractmethod
     def __init__(self,
                  base_estimator,
@@ -90,7 +121,7 @@ class BaseForestKernel(six.with_metaclass(ABCMeta, BaseForest, TransformerMixin)
                  estimator_params=tuple(),
                  bootstrap=False,
                  oob_score=False,
-                 kernel_depth='random',
+                 kernel_type='random',
                  sampling_method='bootstrap',
                  n_jobs=1,
                  random_state=None,
@@ -110,7 +141,7 @@ class BaseForestKernel(six.with_metaclass(ABCMeta, BaseForest, TransformerMixin)
             warm_start=warm_start,
             class_weight=class_weight)
 
-        self.kernel_depth = kernel_depth
+        self.kernel_type = kernel_type
         self.sampling_method = sampling_method
 
     def _set_oob_score(self, X, y):
@@ -118,6 +149,10 @@ class BaseForestKernel(six.with_metaclass(ABCMeta, BaseForest, TransformerMixin)
 
     def fit(self, X, y=None, sample_weight=None):
         X = check_array(X, accept_sparse=['csc'], ensure_2d=False)
+
+        if self.kernel_type not in ['leaf', 'random']:
+            raise ValueError("`kernel_type` must be one of {'leaf', 'random'}."
+                             " Got `kernel_type = {}".format(kernel_type))
 
         if sparse.issparse(X):
             # Pre-sort indices to avoid each individual tree of the
@@ -128,26 +163,31 @@ class BaseForestKernel(six.with_metaclass(ABCMeta, BaseForest, TransformerMixin)
             X_ = X
             y_ = y
         else:
-            X_, y_ = generate_discriminative_dataset(X, method=self.sampling_method)
+            X_, y_ = generate_discriminative_dataset(
+                X, method=self.sampling_method)
 
         super(BaseForestKernel, self).fit(X_, y_,
                                           sample_weight=sample_weight)
 
-        # fix the depths used when 'kernel_method == 'random'
-        random_state = check_random_state(self.random_state)
-        self.depths_ = [random_state.choice(range(1, tree.tree_.max_depth + 1))
-                        for tree in self.estimators_]
+        # fix the depths used when 'kernel_type == 'random'
+        self.tree_depths_ = sample_depths(self, random_state=self.random_state)
 
         return self
 
-    def transform(self, X, kernel_depth=None):
-        if kernel_depth is None:
-            kernel_depth = self.kernel_depth
+    def transform(self, X, kernel_type=None):
+        if kernel_type is None:
+            kernel_type = self.kernel_type
 
-        if kernel_depth == 'random':
-            kernel_depth = self.depths_
+        if kernel_type not in ['leaf', 'random']:
+            raise ValueError("`kernel_type` must be one of {'leaf', 'random'}."
+                             " Got `kernel_type = {}".format(kernel_type))
 
-        return random_forest_kernel(self, X, kernel_depth=kernel_depth)
+        if kernel_type == 'leaf':
+            return leaf_node_kernel(self.apply(X))
+        else:
+            return random_partition_kernel(self, X,
+                                           tree_depths=self.tree_depths_,
+                                           random_state=self.random_state)
 
 
 class ExtraTreesKernel(BaseForestKernel):
@@ -161,7 +201,7 @@ class ExtraTreesKernel(BaseForestKernel):
                  max_features='auto',
                  max_leaf_nodes=None,
                  bootstrap=True,
-                 kernel_depth='random',
+                 kernel_type='random',
                  sampling_method='bootstrap',
                  n_jobs=1,
                  random_state=None,
@@ -177,7 +217,7 @@ class ExtraTreesKernel(BaseForestKernel):
                                   "max_features", "max_leaf_nodes",
                                   "random_state"),
                 bootstrap=bootstrap,
-                kernel_depth=kernel_depth,
+                kernel_type=kernel_type,
                 sampling_method=sampling_method,
                 oob_score=False,
                 n_jobs=n_jobs,
@@ -208,7 +248,7 @@ class RandomForestKernel(BaseForestKernel):
                  max_features='auto',
                  max_leaf_nodes=None,
                  bootstrap=True,
-                 kernel_depth='random',
+                 kernel_type='random',
                  sampling_method='bootstrap',
                  n_jobs=1,
                  random_state=None,
@@ -224,7 +264,7 @@ class RandomForestKernel(BaseForestKernel):
                                   "max_features", "max_leaf_nodes",
                                   "random_state"),
                 bootstrap=bootstrap,
-                kernel_depth=kernel_depth,
+                kernel_type=kernel_type,
                 sampling_method=sampling_method,
                 oob_score=False,
                 n_jobs=n_jobs,
