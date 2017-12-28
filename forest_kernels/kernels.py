@@ -46,23 +46,33 @@ def leaf_node_kernel(X_leaves):
     """The leaf node kernel matrix induced by an ensemble of
     decision trees.
 
-   The terminal or leaf nodes of an unpruned decision tree contain only
-   a small number of observations. These observations lie in a similar
-   partition of the sample space, where 'similar' is defined by the
-   splitting criterion of the tree (gini norm, variance reduction, etc.) as
-   well as the target being classified.
+    An ensemble of trees (such as a random forest) can be viewed as a
+    kernel-based model:
 
-   These similar partitions can be used to construct a similarity measure. The
-   training data are run down each tree in the ensemble. If observations x_i
-   and x_j both land in the same leaf node, the similarity between x_i and x_j
-   is increased by one. This is done for each tree of the ensemble, so
-   that the final similarity is defined as:
+        f(x) = sum_i^n y_i * K_t(x_i, x)
+
+    where the kernel function K_t measures the similarity between any pair
+    of inputs x_i and x.
+
+    Note that the terminal or leaf nodes of an unpruned decision tree contain
+    only a small number of observations. These observations lie in a similar
+    partition of the sample space, where 'similar' is defined by the
+    splitting criterion of the tree (gini norm, variance reduction, etc.) as
+    well as the target being classified. These similar partitions can be used
+    to construct a similarity measure, which also satisfies the properties of a
+    kernel-function. The training data are run down each tree in the ensemble.
+    If observations x_i and x_j both land in the same leaf node,
+    the similarity between x_i and x_j is increased by one.
+    This is done for each tree of the ensemble, so that the final similarity
+    is defined as:
 
                   Number of leaves shared by x_i and x_j
         K(i, j) = --------------------------------------
                   Total number of trees in the forest.
 
-    Note that this similarity measure lies between 0 and 1.
+    Note that this similarity measure lies between 0 and 1. In addition,
+    this kernel will reproduce the predictions of the ensemble of trees
+    if used in the above kernel-based model.
 
     Parameters
     ----------
@@ -79,6 +89,7 @@ def leaf_node_kernel(X_leaves):
     [1]
     [2]
     [3]
+    [4]
 
     References
     ----------
@@ -90,13 +101,64 @@ def leaf_node_kernel(X_leaves):
            Statistics. Volume 15, Number 1, March 2006, pp. 118-138(21)
     .. [3] Breiman, L. and Cutler, A. (2003), "Random Forests Manual v4.0",
            Technical report, UC Berkeley,
-           ftp://ftp.stat.berkeley.edu/pub/users/breiman/Using_random_forests_v4.0.pdf.
+           ftp://ftp.stat.berkeley.edu/pub/users/breiman/
+           Using_random_forests_v4.0.pdf.
+    .. [4] P. Geurts, D. Ernst., and L. Whenkel, "Extremely randomized trees",
+           Machine Learning, 63(1), 3-42, 2006.
     """
     return 1 - pairwise_distances(X_leaves, metric='hamming')
 
 
 def random_partition_kernel(forest, X, tree_depths='random', random_state=123):
     """Random Partition Kernel induced by an ensemble of decision trees.
+
+    A random partition kernel is a kernel-function induced by a distribution
+    over partitions (or random partitions) of a dataset. Since an ensemble of
+    trees such as a random-forest partitions a dataset into groups
+    (the tree nodes), these models can be thought of random partition
+    generators and so induce a kernel-function.
+
+    By repeatedly cutting a data-set into random partitions we would expect
+    data points that are similar to each other to be grouped together
+    more often then other samples. Likewise nodes in the
+    decision tree should contain similar datapoints. In order to sample the
+    whole hierachal structure of the forest a depth is chosen at random to
+    sample and then the common partitions are added up. The kernel is as
+    follows:
+                  Number of times x_i and x_j occur in the same node
+        K(i, j) = --------------------------------------------------
+                  Total number of trees in the ensemble
+    Parameters
+    ----------
+    forest: A class instance derived from `sklearn.ensemble.BaseForest`.
+        The forest from which the kernel is calculated.
+
+    X: array-like, shape = [n_samples, n_features]
+       The data to train the kernel on.
+
+    tree_depths: list or str, optional (default='random')
+        A list of depths to use for each tree. if `tree_depths`='random'
+        then the depths are randomly sampled from a discrete uniform
+        distribution between 1 and max_depth.
+
+    random_state : int, RandomState instance or None, optional (default=None)
+        If int, random_state is the seed used by the random number generator;
+        If RandomState instance, random_state is the random number generator;
+        If None, the random number generator is the RandomState instance used
+        by `np.random`.
+
+    Returns
+    -------
+    K : array-like, shape = [n_samples, n_samples]
+        A kernel matrix K such that K_{i, j} is the similarity between
+        the ith and jth vectors.
+    [1]
+
+    References
+    ----------
+    .. [1] A. Davis, Z. Ghahramani, "The Random Forest Kernel and creating
+           other kernels for big data from random partitions",
+           CoRR, 2014.
     """
     if tree_depths == 'random':
         tree_depths = sample_depths(forest, random_state=random_state)
