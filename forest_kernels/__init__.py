@@ -1,1 +1,1 @@
-from forest_kernels.tree_kernels import *
+from forest_kernels.kernels import *

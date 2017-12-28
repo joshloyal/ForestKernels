@@ -1,8 +1,18 @@
 import numpy as np
 import scipy.sparse as sparse
 
+from sklearn.metrics import pairwise_distances
+
 from forest_cluster import array_utils
 
+
+def match_leaves(X):
+    return 1 - pairwise_distances(X, metric='hamming')
+
+
+def match_nodes(X):
+    H = (X * X.T).toarray()
+    return H
 
 def which_shared_nodes(sample_ids, node_indicator):
     n_nodes = node_indicator.shape[1]
