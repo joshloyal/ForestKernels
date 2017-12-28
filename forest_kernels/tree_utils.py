@@ -6,9 +6,15 @@ from sklearn.metrics import pairwise_distances
 from forest_kernels import array_utils
 
 
-def count_shared_nodes(X_nodes):
-    """The number of shared nodes between samples at a fixed depth of a
-    decision tree.
+def node_similarity(X_nodes):
+    """A binary similarity matrix where samples i and j have a similarity
+    of 1 if they are contained in the same node of a decision tree.
+
+    Returns
+    -------
+    S: array-like, shape = [n_samples, n_samples]
+        A symmetric binary matrix S such that S_{i, j} is 1 if the ith
+        and jth vectors are contained in the same node and 0 otherwise.
     """
     return (X_nodes * X_nodes.T).toarray()
 

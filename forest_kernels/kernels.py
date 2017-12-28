@@ -106,7 +106,7 @@ def random_partition_kernel(forest, X, tree_depths='random', random_state=123):
     for tree_idx, tree in enumerate(forest.estimators_):
         node_indicator = tree_utils.apply_to_depth(
             tree, X, depth=tree_depths[tree_idx])
-        kernel += tree_utils.count_shared_nodes(node_indicator)
+        kernel += tree_utils.node_similarity(node_indicator)
 
     return kernel / len(forest.estimators_)
 
