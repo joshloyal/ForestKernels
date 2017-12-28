@@ -3,7 +3,7 @@ import scipy.sparse as sparse
 
 from sklearn.metrics import pairwise_distances
 
-from forest_cluster import array_utils
+from forest_kernels import array_utils
 
 
 def count_shared_nodes(X_nodes):
