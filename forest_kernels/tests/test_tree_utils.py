@@ -4,7 +4,7 @@ import scipy.sparse as sparse
 from forest_kernels import tree_utils
 
 
-def test_count_shared_nodes():
+def test_node_similarity():
     node_indicators = sparse.csr_matrix(np.array([[1, 0, 0],
                                                   [1, 0, 0],
                                                   [0, 0, 1],
