@@ -208,6 +208,15 @@ def test_apply_to_depth_unbalanced(unbalanced_tree):
     np.testing.assert_allclose(depth_two, expected)
 
 
+def test_apply_to_depth_does_not_drop_columns(unbalanced_tree):
+    X, _, tree = unbalanced_tree
+
+    expected = np.array([[1, 0, 0],
+                         [1, 0, 0]])
+    depth_two = tree_utils.apply_to_depth(tree, X[:2], depth=2).toarray()
+    np.testing.assert_allclose(depth_two, expected)
+
+
 def test_apply_to_depth_negative_depth(unbalanced_tree):
     """Test depth == -1 returns the leaf nodes"""
     X, _, tree = unbalanced_tree

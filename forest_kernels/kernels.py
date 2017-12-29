@@ -10,17 +10,20 @@ import scipy.sparse as sparse
 
 from abc import ABCMeta, abstractmethod
 
-from sklearn.base import TransformerMixin
+from sklearn.base import TransformerMixin, is_regressor
 from sklearn.ensemble.forest import BaseForest
 from sklearn.metrics import pairwise_distances
-from sklearn.tree import DecisionTreeClassifier, ExtraTreeClassifier
+from sklearn.tree import (DecisionTreeClassifier, ExtraTreeClassifier,
+                          DecisionTreeRegressor, ExtraTreeRegressor)
 from sklearn.utils import check_array, check_random_state
 
 from forest_kernels import tree_utils
 from forest_kernels.synthetic_data import generate_discriminative_dataset
 
 
-__all__ = ['BaseForestKernel', 'RandomForestKernel', 'ExtraTreesKernel']
+__all__ = ['BaseForestKernel',
+           'RandomForestClassifierKernel', 'RandomForestRegressorKernel',
+           'ExtraTreesClassifierKernel', 'ExtraTreesRegressorKernel']
 
 
 def sample_depths(forest, random_state=123):
@@ -42,14 +45,14 @@ def sample_depths(forest, random_state=123):
             for tree in forest.estimators_]
 
 
-def leaf_node_kernel(X_leaves):
+def leaf_node_kernel(X_leaves, Y_leaves=None):
     """The leaf node kernel matrix induced by an ensemble of
     decision trees.
 
     An ensemble of trees (such as a random forest) can be viewed as a
     kernel-based model:
 
-        f(x) = sum_i^n y_i * K_t(x_i, x)
+        f(x) = sum_i^n y_i * K_t(x, x_i) / sum_l^n * K_t(x, x_i)
 
     where the kernel function K_t measures the similarity between any pair
     of inputs x_i and x.
@@ -106,10 +109,11 @@ def leaf_node_kernel(X_leaves):
     .. [4] P. Geurts, D. Ernst., and L. Whenkel, "Extremely randomized trees",
            Machine Learning, 63(1), 3-42, 2006.
     """
-    return 1 - pairwise_distances(X_leaves, metric='hamming')
+    return 1 - pairwise_distances(X_leaves, Y=Y_leaves, metric='hamming')
 
 
-def random_partition_kernel(forest, X, tree_depths='random', random_state=123):
+def random_partition_kernel(forest, X, Y=None, tree_depths='random',
+                            random_state=123):
     """Random Partition Kernel induced by an ensemble of decision trees.
 
     A random partition kernel is a kernel-function induced by a distribution
@@ -163,12 +167,21 @@ def random_partition_kernel(forest, X, tree_depths='random', random_state=123):
     if tree_depths == 'random':
         tree_depths = sample_depths(forest, random_state=random_state)
 
-    n_samples = X.shape[0]
-    kernel = np.zeros(shape=(n_samples, n_samples))
+    n_samples_x = X.shape[0]
+    n_samples_y = Y.shape[0] if Y is not None else n_samples_x
+    kernel = np.zeros(shape=(n_samples_x, n_samples_y))
     for tree_idx, tree in enumerate(forest.estimators_):
-        node_indicator = tree_utils.apply_to_depth(
+        node_indicator_X = tree_utils.apply_to_depth(
             tree, X, depth=tree_depths[tree_idx])
-        kernel += tree_utils.node_similarity(node_indicator)
+
+        if Y is not None:
+            node_indicator_Y = tree_utils.apply_to_depth(
+                tree, Y, depth=tree_depths[tree_idx])
+        else:
+            node_indicator_Y = node_indicator_X
+
+        kernel += tree_utils.node_similarity(
+            node_indicator_X, node_indicator_Y)
 
     return kernel / len(forest.estimators_)
 
@@ -230,6 +243,12 @@ class BaseForestKernel(six.with_metaclass(ABCMeta,
             X_ = X
             y_ = y
         else:
+            if is_regressor(self.base_estimator):
+                raise ValueError(
+                    "The unsupervised kernels are not available for "
+                    "regressors. Either provide a value for `y` or use one "
+                    "of the following classes: {RandomForestClassifierKernel, "
+                    "ExtraTreesClassifierKernel}.")
             X_, y_ = generate_discriminative_dataset(
                 X, method=self.sampling_method)
 
@@ -237,9 +256,21 @@ class BaseForestKernel(six.with_metaclass(ABCMeta,
                                           sample_weight=sample_weight)
 
         # fix the depths used when 'kernel_type == 'random'
+        self.X_leaves_ = self.apply(X)
+        self.X_ = X_
         self.tree_depths_ = sample_depths(self, random_state=self.random_state)
 
         return self
+
+    def fit_transform(self, X, y=None, **fit_params):
+        self.fit(X, y=y, **fit_params)
+
+        if self.kernel_type == 'leaf':
+            return leaf_node_kernel(self.apply(X))
+        else:
+            return random_partition_kernel(self, X,
+                                           tree_depths=self.tree_depths_,
+                                           random_state=self.random_state)
 
     def transform(self, X, kernel_type=None):
         if kernel_type is None:
@@ -250,15 +281,15 @@ class BaseForestKernel(six.with_metaclass(ABCMeta,
                              " Got `kernel_type = {}".format(kernel_type))
 
         if kernel_type == 'leaf':
-            return leaf_node_kernel(self.apply(X))
+            return leaf_node_kernel(self.apply(X), Y_leaves=self.X_leaves_)
         else:
-            return random_partition_kernel(self, X,
+            return random_partition_kernel(self, X, Y=self.X_,
                                            tree_depths=self.tree_depths_,
                                            random_state=self.random_state)
 
 
-class RandomForestKernel(BaseForestKernel):
-    """A Random Forest Kernel.
+class RandomForestClassifierKernel(BaseForestKernel):
+    """A Random Forest Classifier Kernel.
 
     This class implements a kernel induced by a random-forest classifier.
 
@@ -277,36 +308,39 @@ class RandomForestKernel(BaseForestKernel):
     def __init__(self,
                  n_estimators=10,
                  criterion='gini',
-                 max_depth=5,
+                 max_depth=None,
                  min_samples_split=2,
                  min_samples_leaf=1,
                  min_weight_fraction_leaf=0.,
                  max_features='auto',
                  max_leaf_nodes=None,
+                 min_impurity_decrease=0.,
+                 min_impurity_split=None,
                  bootstrap=True,
                  kernel_type='random',
                  sampling_method='bootstrap',
                  n_jobs=1,
                  random_state=None,
                  verbose=0,
-                 warm_start=False):
-        super(RandomForestKernel, self).__init__(
-                base_estimator=DecisionTreeClassifier(),
-                n_estimators=n_estimators,
-                estimator_params=("criterion", "max_depth",
-                                  "min_samples_split",
-                                  "min_samples_leaf",
-                                  "min_weight_fraction_leaf",
-                                  "max_features", "max_leaf_nodes",
-                                  "random_state"),
-                bootstrap=bootstrap,
-                kernel_type=kernel_type,
-                sampling_method=sampling_method,
-                oob_score=False,
-                n_jobs=n_jobs,
-                random_state=random_state,
-                verbose=verbose,
-                warm_start=warm_start)
+                 warm_start=False,
+                 class_weight=None):
+        super(RandomForestClassifierKernel, self).__init__(
+            base_estimator=DecisionTreeClassifier(),
+            n_estimators=n_estimators,
+            estimator_params=("criterion", "max_depth", "min_samples_split",
+                              "min_samples_leaf", "min_weight_fraction_leaf",
+                              "max_features", "max_leaf_nodes",
+                              "min_impurity_decrease", "min_impurity_split",
+                              "random_state"),
+            bootstrap=bootstrap,
+            kernel_type=kernel_type,
+            sampling_method=sampling_method,
+            oob_score=False,
+            n_jobs=n_jobs,
+            random_state=random_state,
+            verbose=verbose,
+            warm_start=warm_start,
+            class_weight=class_weight)
 
         self.criterion = criterion
         self.max_depth = max_depth
@@ -315,9 +349,74 @@ class RandomForestKernel(BaseForestKernel):
         self.min_weight_fraction_leaf = min_weight_fraction_leaf
         self.max_features = max_features
         self.max_leaf_nodes = max_leaf_nodes
+        self.min_impurity_decrease = min_impurity_decrease
+        self.min_impurity_split = min_impurity_split
 
 
-class ExtraTreesKernel(BaseForestKernel):
+class RandomForestRegressorKernel(BaseForestKernel):
+    """A Random Forest Regressor Kernel.
+
+    This class implements a kernel induced by a random-forest classifier.
+
+    Parameters
+    ----------
+
+    Notes
+    -----
+
+    References
+    ----------
+
+    See also
+    --------
+    """
+    def __init__(self,
+                 n_estimators=10,
+                 criterion='mse',
+                 max_depth=None,
+                 min_samples_split=2,
+                 min_samples_leaf=1,
+                 min_weight_fraction_leaf=0.,
+                 max_features='auto',
+                 max_leaf_nodes=None,
+                 min_impurity_decrease=0.,
+                 min_impurity_split=None,
+                 bootstrap=True,
+                 kernel_type='random',
+                 sampling_method='bootstrap',
+                 n_jobs=1,
+                 random_state=None,
+                 verbose=0,
+                 warm_start=False):
+        super(RandomForestRegressorKernel, self).__init__(
+            base_estimator=DecisionTreeRegressor(),
+            n_estimators=n_estimators,
+            estimator_params=("criterion", "max_depth", "min_samples_split",
+                              "min_samples_leaf", "min_weight_fraction_leaf",
+                              "max_features", "max_leaf_nodes",
+                              "min_impurity_decrease", "min_impurity_split",
+                              "random_state"),
+            bootstrap=bootstrap,
+            oob_score=False,
+            kernel_type=kernel_type,
+            sampling_method=sampling_method,
+            n_jobs=n_jobs,
+            random_state=random_state,
+            verbose=verbose,
+            warm_start=warm_start)
+
+        self.criterion = criterion
+        self.max_depth = max_depth
+        self.min_samples_split = min_samples_split
+        self.min_samples_leaf = min_samples_leaf
+        self.min_weight_fraction_leaf = min_weight_fraction_leaf
+        self.max_features = max_features
+        self.max_leaf_nodes = max_leaf_nodes
+        self.min_impurity_decrease = min_impurity_decrease
+        self.min_impurity_split = min_impurity_split
+
+
+class ExtraTreesClassifierKernel(BaseForestKernel):
     """A Extra Trees Kernel.
 
     This class implements a kernel induced by a extra-trees classifier.
@@ -343,6 +442,8 @@ class ExtraTreesKernel(BaseForestKernel):
                  min_weight_fraction_leaf=0.,
                  max_features='auto',
                  max_leaf_nodes=None,
+                 min_impurity_decrease=0.,
+                 min_impurity_split=None,
                  bootstrap=True,
                  kernel_type='random',
                  sampling_method='bootstrap',
@@ -350,23 +451,22 @@ class ExtraTreesKernel(BaseForestKernel):
                  random_state=None,
                  verbose=0,
                  warm_start=False):
-        super(ExtraTreesKernel, self).__init__(
-                base_estimator=ExtraTreeClassifier(),
-                n_estimators=n_estimators,
-                estimator_params=("criterion", "max_depth",
-                                  "min_samples_split",
-                                  "min_samples_leaf",
-                                  "min_weight_fraction_leaf",
-                                  "max_features", "max_leaf_nodes",
-                                  "random_state"),
-                bootstrap=bootstrap,
-                kernel_type=kernel_type,
-                sampling_method=sampling_method,
-                oob_score=False,
-                n_jobs=n_jobs,
-                random_state=random_state,
-                verbose=verbose,
-                warm_start=warm_start)
+        super(ExtraTreesClassifierKernel, self).__init__(
+            base_estimator=ExtraTreeClassifier(),
+            n_estimators=n_estimators,
+            estimator_params=("criterion", "max_depth", "min_samples_split",
+                              "min_samples_leaf", "min_weight_fraction_leaf",
+                              "max_features", "max_leaf_nodes",
+                              "min_impurity_decrease", "min_impurity_split",
+                              "random_state"),
+            bootstrap=bootstrap,
+            oob_score=False,
+            kernel_type=kernel_type,
+            sampling_method=sampling_method,
+            n_jobs=n_jobs,
+            random_state=random_state,
+            verbose=verbose,
+            warm_start=warm_start)
 
         self.criterion = criterion
         self.max_depth = max_depth
@@ -375,3 +475,68 @@ class ExtraTreesKernel(BaseForestKernel):
         self.min_weight_fraction_leaf = min_weight_fraction_leaf
         self.max_features = 1
         self.max_leaf_nodes = max_leaf_nodes
+        self.min_impurity_decrease = min_impurity_decrease
+        self.min_impurity_split = min_impurity_split
+
+
+class ExtraTreesRegressorKernel(BaseForestKernel):
+    """A Extra Trees Kernel.
+
+    This class implements a kernel induced by a extra-trees classifier.
+
+    Parameters
+    ----------
+
+    Notes
+    -----
+
+    References
+    ----------
+
+    See also
+    --------
+    """
+    def __init__(self,
+                 n_estimators=10,
+                 criterion='mse',
+                 max_depth=5,
+                 min_samples_split=2,
+                 min_samples_leaf=1,
+                 min_weight_fraction_leaf=0.,
+                 max_features='auto',
+                 max_leaf_nodes=None,
+                 min_impurity_decrease=0.,
+                 min_impurity_split=None,
+                 bootstrap=True,
+                 kernel_type='random',
+                 sampling_method='bootstrap',
+                 n_jobs=1,
+                 random_state=None,
+                 verbose=0,
+                 warm_start=False):
+        super(ExtraTreesRegressorKernel, self).__init__(
+            base_estimator=ExtraTreeRegressor(),
+            n_estimators=n_estimators,
+            estimator_params=("criterion", "max_depth", "min_samples_split",
+                              "min_samples_leaf", "min_weight_fraction_leaf",
+                              "max_features", "max_leaf_nodes",
+                              "min_impurity_decrease", "min_impurity_split",
+                              "random_state"),
+            bootstrap=bootstrap,
+            oob_score=False,
+            kernel_type=kernel_type,
+            sampling_method=sampling_method,
+            n_jobs=n_jobs,
+            random_state=random_state,
+            verbose=verbose,
+            warm_start=warm_start)
+
+        self.criterion = criterion
+        self.max_depth = max_depth
+        self.min_samples_split = min_samples_split
+        self.min_samples_leaf = min_samples_leaf
+        self.min_weight_fraction_leaf = min_weight_fraction_leaf
+        self.max_features = 1
+        self.max_leaf_nodes = max_leaf_nodes
+        self.min_impurity_decrease = min_impurity_decrease
+        self.min_impurity_split = min_impurity_split
