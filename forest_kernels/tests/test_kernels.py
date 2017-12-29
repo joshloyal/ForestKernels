@@ -1,13 +1,31 @@
 import numpy as np
+import pytest
 
 import forest_kernels
 
 from sklearn.datasets import make_blobs
+from sklearn.ensemble import RandomForestClassifier
 
 from forest_kernels.kernels import leaf_node_kernel
 
 
-def test_leaf_node_kernel():
+@pytest.fixture
+def balanced_forest():
+    """A forest a depth one balanced trees."""
+    X = [[-2, -1],
+         [-1, -1],
+         [-1, -2],
+         [1, 1],
+         [1, 2],
+         [2, 1]]
+    y = [-1, -1, -1, 1, 1, 1]
+    forest = RandomForestClassifier(n_estimators=3, random_state=123).fit(X, y)
+
+    return X, y, forest
+
+
+def test_leaf_node_kernel_toy():
+    """Test a worked out set of leaves has the correct kernel."""
     X_leaves = np.array([[1, 2, 3, 4],
                          [3, 2, 3, 1],
                          [1, 2, 3, 4],
@@ -22,11 +40,26 @@ def test_leaf_node_kernel():
     np.testing.assert_allclose(K, K_expected)
 
 
+def test_leaf_node_kernel_balanced(balanced_forest):
+    """Test the balanced forest has a block diagnol kernel."""
+    X, _, forest = balanced_forest
+
+    K_expected = np.array([[1, 1, 1, 0, 0, 0],
+                           [1, 1, 1, 0, 0, 0],
+                           [1, 1, 1, 0, 0, 0],
+                           [0, 0, 0, 1, 1, 1],
+                           [0, 0, 0, 1, 1, 1],
+                           [0, 0, 0, 1, 1, 1]])
+    K = leaf_node_kernel(forest.apply(X))
+    np.testing.assert_allclose(K, K_expected)
+
+
 def test_random_forest_kernel_random():
     X, y = make_blobs(random_state=123)
 
     kernel = forest_kernels.RandomForestKernel(kernel_type='random')
     kernel.fit_transform(X)
+
 
 def test_random_forest_kernel_leaf():
     X, y = make_blobs(random_state=123)
