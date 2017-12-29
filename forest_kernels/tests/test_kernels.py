@@ -24,6 +24,24 @@ def balanced_forest():
     return X, y, forest
 
 
+@pytest.fixture
+def unbalanced_forest():
+    """A forest of unbalanced trees."""
+    X = [[-2, -1],
+         [-1, -1],
+         [-1, -2],
+         [1, 1],
+         [1, 2],
+         [2, 1],
+         [1, 3],
+         [2, 4],
+         [1, 5]]
+    y = [-1, -1, -1, 1, 1, 1,-1,-1,-1]
+    forest = RandomForestClassifier(n_estimators=3, random_state=123).fit(X, y)
+
+    return X, y, forest
+
+
 def test_leaf_node_kernel_toy():
     """Test a worked out set of leaves has the correct kernel."""
     X_leaves = np.array([[1, 2, 3, 4],
@@ -50,6 +68,41 @@ def test_leaf_node_kernel_balanced(balanced_forest):
                            [0, 0, 0, 1, 1, 1],
                            [0, 0, 0, 1, 1, 1],
                            [0, 0, 0, 1, 1, 1]])
+    K = leaf_node_kernel(forest.apply(X))
+    np.testing.assert_allclose(K, K_expected)
+
+
+def test_leaf_node_kernel_unbalanced(unbalanced_forest):
+    """Test an unbalanced forest is correct (not calculated by hand,
+    but designed to catch changes)."""
+    X, _, forest = unbalanced_forest
+
+    K_expected = np.array([[1, 1, 1, 0, 0, 0],
+                           [1, 1, 1, 0, 0, 0],
+                           [1, 1, 1, 0, 0, 0],
+                           [0, 0, 0, 1, 1, 1],
+                           [0, 0, 0, 1, 1, 1],
+                           [0, 0, 0, 1, 1, 1]])
+    K_expected = np.array([[1., 1., 1., 0.33333333, 0.33333333,
+                            0.33333333,  0.33333333,  0.33333333,  0.33333333],
+                            [1,  1.,  1.,  0.33333333,  0.33333333,
+                            0.33333333,  0.33333333,  0.33333333,  0.33333333],
+                            [1.,  1.,  1.,  0.33333333,  0.33333333,
+                            0.33333333,  0.33333333,  0.33333333,  0.33333333],
+                            [0.33333333,  0.33333333,  0.33333333,  1.,  1.,
+                            0.66666667,  0.33333333,  0.33333333,  0.33333333],
+                            [0.33333333,  0.33333333,  0.33333333,  1.,  1. ,
+                            0.66666667,  0.33333333,  0.33333333,  0.33333333],
+                            [0.33333333,  0.33333333,  0.33333333,  0.66666667,
+                            0.66666667, 1.,  0.33333333,  0.66666667,
+                            0.33333333],
+                            [0.33333333, 0.33333333, 0.33333333,  0.33333333,
+                              0.33333333, 0.33333333, 1.,  0.66666667,  1.],
+                            [0.33333333,  0.33333333,  0.33333333,  0.33333333,
+                              0.33333333, 0.66666667, 0.66666667, 1.,
+                              .66666667],
+                            [0.33333333, 0.33333333, 0.33333333, 0.33333333,
+                             0.33333333, 0.33333333, 1, 0.66666667, 1]])
     K = leaf_node_kernel(forest.apply(X))
     np.testing.assert_allclose(K, K_expected)
 
