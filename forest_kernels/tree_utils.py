@@ -7,7 +7,7 @@ from sklearn.utils import check_array
 from forest_kernels import array_utils
 
 
-def node_similarity(X_nodes):
+def node_similarity(X_nodes, Y_nodes=None):
     """A binary similarity matrix where samples i and j have a similarity
     of 1 if they are contained in the same node of a decision tree.
 
@@ -17,7 +17,10 @@ def node_similarity(X_nodes):
         A symmetric binary matrix S such that S_{i, j} is 1 if the ith
         and jth vectors are contained in the same node and 0 otherwise.
     """
-    return (X_nodes * X_nodes.T).toarray()
+    if Y_nodes is None:
+        Y_nodes = X_nodes
+
+    return (X_nodes * Y_nodes.T).toarray()
 
 
 def get_node_depths(tree):
