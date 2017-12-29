@@ -77,12 +77,6 @@ def test_leaf_node_kernel_unbalanced(unbalanced_forest):
     but designed to catch changes)."""
     X, _, forest = unbalanced_forest
 
-    K_expected = np.array([[1, 1, 1, 0, 0, 0],
-                           [1, 1, 1, 0, 0, 0],
-                           [1, 1, 1, 0, 0, 0],
-                           [0, 0, 0, 1, 1, 1],
-                           [0, 0, 0, 1, 1, 1],
-                           [0, 0, 0, 1, 1, 1]])
     K_expected = np.array([[1., 1., 1., 0.33333333, 0.33333333,
                             0.33333333,  0.33333333,  0.33333333,  0.33333333],
                             [1,  1.,  1.,  0.33333333,  0.33333333,
