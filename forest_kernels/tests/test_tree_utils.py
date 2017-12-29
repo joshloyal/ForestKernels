@@ -50,23 +50,6 @@ def tall_tree():
     return X, y, tree
 
 
-def test_node_similarity():
-    """Test that the node similarity matrix works for a toy example."""
-    node_indicators = sparse.csr_matrix(np.array([[1, 0, 0],
-                                                  [1, 0, 0],
-                                                  [0, 0, 1],
-                                                  [0, 1, 0],
-                                                  [0, 0, 1]]))
-    S_expected = np.array([[1, 1, 0, 0, 0],
-                           [1, 1, 0, 0, 0],
-                           [0, 0, 1, 0, 1],
-                           [0, 0, 0, 1, 0],
-                           [0, 0, 1, 0, 1]])
-
-    S = tree_utils.node_similarity(node_indicators)
-    np.testing.assert_allclose(S, S_expected)
-
-
 @pytest.mark.parametrize('tree_data, expected_depths', [
     (balanced_tree(), [0, 1, 1]),
     (unbalanced_tree(), [0, 1, 1, 2, 2]),
@@ -259,3 +242,53 @@ def test_apply_to_depth_too_high_depth(unbalanced_tree):
                          [0, 1, 0]])
     depth_two = tree_utils.apply_to_depth(tree, X, depth=100).toarray()
     np.testing.assert_allclose(depth_two, expected)
+
+
+def test_node_similarity():
+    """Test that the node similarity matrix works for a toy example."""
+    node_indicators = sparse.csr_matrix(np.array([[1, 0, 0],
+                                                  [1, 0, 0],
+                                                  [0, 0, 1],
+                                                  [0, 1, 0],
+                                                  [0, 0, 1]]))
+    S_expected = np.array([[1, 1, 0, 0, 0],
+                           [1, 1, 0, 0, 0],
+                           [0, 0, 1, 0, 1],
+                           [0, 0, 0, 1, 0],
+                           [0, 0, 1, 0, 1]])
+
+    S = tree_utils.node_similarity(node_indicators)
+    np.testing.assert_allclose(S, S_expected)
+
+
+def test_node_similarity_balanced(balanced_tree):
+    X, _, tree = balanced_tree
+
+    # this is a balanced tree so targets are grouped together
+    S_expected = np.array([[1, 1, 1, 0, 0, 0],
+                           [1, 1, 1, 0, 0, 0],
+                           [1, 1, 1, 0, 0, 0],
+                           [0, 0, 0, 1, 1, 1],
+                           [0, 0, 0, 1, 1, 1],
+                           [0, 0, 0, 1, 1, 1]])
+    node_indicators = tree_utils.apply_to_depth(tree, X, depth=-1)
+    S = tree_utils.node_similarity(node_indicators)
+    np.testing.assert_allclose(S, S_expected)
+
+
+def test_node_similarity_unbalanced(unbalanced_tree):
+    X, _, tree = unbalanced_tree
+
+    # this is a balanced tree so targets are grouped together
+    S_expected = np.array([[1, 1, 1, 0, 0, 0, 0, 0, 0],
+                           [1, 1, 1, 0, 0, 0, 0, 0, 0],
+                           [1, 1, 1, 0, 0, 0, 0, 0, 0],
+                           [0, 0, 0, 1, 1, 1, 0, 0, 0],
+                           [0, 0, 0, 1, 1, 1, 0, 0, 0],
+                           [0, 0, 0, 1, 1, 1, 0, 0, 0],
+                           [0, 0, 0, 0, 0, 0, 1, 1, 1],
+                           [0, 0, 0, 0, 0, 0, 1, 1, 1],
+                           [0, 0, 0, 0, 0, 0, 1, 1, 1]])
+    node_indicators = tree_utils.apply_to_depth(tree, X, depth=-1)
+    S = tree_utils.node_similarity(node_indicators)
+    np.testing.assert_allclose(S, S_expected)
