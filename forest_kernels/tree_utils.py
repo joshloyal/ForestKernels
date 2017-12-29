@@ -2,6 +2,7 @@ import numpy as np
 import scipy.sparse as sparse
 
 from sklearn.metrics import pairwise_distances
+from sklearn.utils import check_array
 
 from forest_kernels import array_utils
 
@@ -55,6 +56,8 @@ def get_node_indicators(tree, X, depth=-1):
 
 
 def apply_to_depth(tree, X, depth=-1):
+    X = check_array(X, accept_sparse='csr')
+
     max_depth = tree.tree_.max_depth
     if depth == -1 or depth > max_depth:
         depth = max_depth
