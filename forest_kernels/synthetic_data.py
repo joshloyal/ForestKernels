@@ -1,6 +1,6 @@
 import numpy as np
 
-from sklearn.utils import check_random_state
+from sklearn.utils import check_random_state, check_array
 
 
 __all__ = ['generate_discriminative_dataset']
@@ -93,7 +93,11 @@ def generate_synthetic_features(X, method='bootstrap', random_state=1234):
     """
     random_state = check_random_state(random_state)
     n_features = int(X.shape[1])
-    synth_X = np.empty_like(X)
+
+    # NOTE: If X is ordinal or nominal then this generates data
+    # on a non-discrete scale. Should we sample from a discrete uniform
+    # in that case?
+    synth_X = np.empty(X.shape, dtype=np.float32)
     for column in range(n_features):
         if method == 'bootstrap':
             synth_X[:, column] = bootstrap_sample_column(
@@ -107,7 +111,8 @@ def generate_synthetic_features(X, method='bootstrap', random_state=1234):
     return synth_X
 
 
-def generate_discriminative_dataset(X, method='bootstrap', random_state=1234):
+def generate_discriminative_dataset(X, method='bootstrap', shuffle=True,
+                                    random_state=1234):
     """generate_discriminative_dataset.
 
     Generate a synthetic dataset based on the empirical distribution
@@ -127,6 +132,10 @@ def generate_discriminative_dataset(X, method='bootstrap', random_state=1234):
         samples each column with replacement. `uniform` generates
         a new column uniformly sampled between the minimum and
         maximum value of each column.
+
+    shuffle : bool, optional (default=True)
+        Whether the synthetic dataset should be shuffled. If False then
+        the dataset contains original then synthetic samples.
 
     random_state : int
         Seed to the random number generator.
@@ -150,8 +159,9 @@ def generate_discriminative_dataset(X, method='bootstrap', random_state=1234):
     X_ = np.vstack((X, synth_X))
     y_ = np.concatenate((np.ones(n_samples), np.zeros(n_samples)))
 
-    permutation_indices = random_state.permutation(np.arange(X_.shape[0]))
-    X_ = X_[permutation_indices, :]
-    y_ = y_[permutation_indices]
+    if shuffle:
+        permutation_indices = random_state.permutation(np.arange(X_.shape[0]))
+        X_ = X_[permutation_indices, :]
+        y_ = y_[permutation_indices]
 
     return X_, y_

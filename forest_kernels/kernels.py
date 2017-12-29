@@ -17,7 +17,7 @@ from sklearn.tree import DecisionTreeClassifier, ExtraTreeClassifier
 from sklearn.utils import check_array, check_random_state
 
 from forest_kernels import tree_utils
-from forest_kernels.data_generators import generate_discriminative_dataset
+from forest_kernels.synthetic_data import generate_discriminative_dataset
 
 
 __all__ = ['BaseForestKernel', 'RandomForestKernel', 'ExtraTreesKernel']
