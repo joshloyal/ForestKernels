@@ -119,30 +119,11 @@ def test_leaf_node_kernel_matches_decision_tree():
     np.testing.assert_allclose(k_pred, y_pred)
 
 
-#def test_leaf_node_kernel_matches_random_forest():
-#    boston = load_boston()
-#    X, y = boston.data, boston.target
-#
-#    forest = RandomForestRegressor(max_depth=3, random_state=123).fit(X, y)
-#
-#    kernel = forest_kernels.RandomForestRegressorKernel(
-#        max_depth=3,
-#        kernel_type='leaf',
-#        random_state=123).fit(X, y)
-#
-#    # predictions using tree kernel
-#    K = kernel.transform(X)
-#    K /= K.sum(axis=1)
-#    k_pred = np.dot(K, y)
-#
-#    y_pred = forest.predict(boston.data)
-#    np.testing.assert_allclose(k_pred, y_pred)
-
-
 def test_random_forest_kernel_random():
     X, y = make_blobs(random_state=123)
 
-    kernel = forest_kernels.RandomForestClassifierKernel(kernel_type='random')
+    kernel = forest_kernels.RandomForestClassifierKernel(
+        kernel_type='random_partitions')
     kernel.fit_transform(X)
 
 
@@ -150,7 +131,7 @@ def test_random_forest_kernel_leaf():
    X, y = make_blobs(random_state=123)
 
    kernel = forest_kernels.RandomForestClassifierKernel(n_estimators=3,
-                                                        kernel_type='leaf',
+                                                        kernel_type='leaves',
                                                         random_state=123)
    K = kernel.fit_transform(X)
 
@@ -162,7 +143,7 @@ def test_random_forest_kernel_leaf_new_data():
    y_train, y_test = y[:90], y[90:]
 
    kernel = forest_kernels.RandomForestClassifierKernel(n_estimators=3,
-                                                        kernel_type='leaf',
+                                                        kernel_type='leaves',
                                                         random_state=123)
    kernel.fit(X_train, y_train)
    print(kernel.transform(X_test))

@@ -94,7 +94,7 @@ def generate_synthetic_features(X, method='bootstrap', random_state=1234):
     random_state = check_random_state(random_state)
     n_features = int(X.shape[1])
 
-    # NOTE: If X is ordinal or nominal then this generates data
+    # XXX: If X is ordinal or nominal then this generates data
     # on a non-discrete scale. Should we sample from a discrete uniform
     # in that case?
     synth_X = np.empty(X.shape, dtype=np.float32)

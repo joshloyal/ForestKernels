@@ -3,8 +3,8 @@ import scipy.spatial as spatial
 import scipy.cluster.hierarchy as hierarchy
 
 
-def forest_dendogram(forest_kernel, X, method='average', **kwargs):
-    dissimilarity = 1 - forest_kernel.transform(X)
+def kernel_dendogram(K, method='average', **kwargs):
+    dissimilarity = 1 - K
 
     # cluster the dissimilarity using a hiearchical clustering algorithm
     D = spatial.distance.squareform(dissimilarity)

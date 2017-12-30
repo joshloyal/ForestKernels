@@ -63,11 +63,11 @@ def get_leaf_nodes(tree, depth=-1, return_depths=False):
         if parent_depth + 1 <= depth:
             try:
                 parent_index = leaf_indices.index(parent_id)
-                leaf_nodes.pop(parent_index)
+                leaf_indices.pop(parent_index)
                 node_depths.pop(parent_index)
             except ValueError:
                 pass
-            leaf_nodes.append(node_id)
+            leaf_indices.append(node_id)
             node_depths.append(parent_depth + 1)
 
         # if we have a test node
@@ -76,10 +76,10 @@ def get_leaf_nodes(tree, depth=-1, return_depths=False):
             stack.append((children_right[node_id], parent_depth + 1, node_id))
 
     if return_depths:
-        sorted_indices = np.argsort(leaf_nodes)
-        return (np.array(leaf_nodes)[sorted_indices],
+        sorted_indices = np.argsort(leaf_indicies)
+        return (np.array(leaf_indices)[sorted_indices],
                 np.array(node_depths)[sorted_indices])
-    return np.sort(leaf_nodes)
+    return np.sort(leaf_indices)
 
 
 def apply_until(tree, X, depth=-1):

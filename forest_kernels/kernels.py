@@ -202,7 +202,7 @@ class BaseForestKernel(six.with_metaclass(ABCMeta,
                  estimator_params=tuple(),
                  bootstrap=False,
                  oob_score=False,
-                 kernel_type='random',
+                 kernel_type='random_partitions',
                  sampling_method='bootstrap',
                  n_jobs=1,
                  random_state=None,
@@ -231,9 +231,10 @@ class BaseForestKernel(six.with_metaclass(ABCMeta,
     def fit(self, X, y=None, sample_weight=None):
         X = check_array(X, accept_sparse=['csc'], ensure_2d=False)
 
-        if self.kernel_type not in ['leaf', 'random']:
-            raise ValueError("`kernel_type` must be one of {'leaf', 'random'}."
-                             " Got `kernel_type = {}".format(kernel_type))
+        if self.kernel_type not in ['leaves', 'random_partitions']:
+            raise ValueError("`kernel_type` must be one of "
+                             "{'leaves', 'random_partitions'}. "
+                             "Got `kernel_type = {}".format(kernel_type))
 
         if sparse.issparse(X):
             # Pre-sort indices to avoid each individual tree of the
@@ -256,7 +257,7 @@ class BaseForestKernel(six.with_metaclass(ABCMeta,
         super(BaseForestKernel, self).fit(X_, y_,
                                           sample_weight=sample_weight)
 
-        # fix the depths used when 'kernel_type == 'random'
+        # fix the depths used when 'kernel_type == 'random_partitions'
         self.X_ = X_
         self.tree_depths_ = sample_depths(self, random_state=self.random_state)
 
@@ -265,7 +266,7 @@ class BaseForestKernel(six.with_metaclass(ABCMeta,
     def fit_transform(self, X, y=None, **fit_params):
         self.fit(X, y=y, **fit_params)
 
-        if self.kernel_type == 'leaf':
+        if self.kernel_type == 'leaves':
             return leaf_node_kernel(self.apply(X))
         else:
             return random_partition_kernel(self, X,
@@ -276,11 +277,12 @@ class BaseForestKernel(six.with_metaclass(ABCMeta,
         if kernel_type is None:
             kernel_type = self.kernel_type
 
-        if kernel_type not in ['leaf', 'random']:
-            raise ValueError("`kernel_type` must be one of {'leaf', 'random'}."
-                             " Got `kernel_type = {}".format(kernel_type))
+        if kernel_type not in ['leaves', 'random_partitions']:
+            raise ValueError("`kernel_type` must be one of "
+                             "{'leaves', 'random_partitions'}. "
+                             "Got `kernel_type = {}".format(kernel_type))
 
-        if kernel_type == 'leaf':
+        if kernel_type == 'leaves':
             return leaf_node_kernel(self.apply(X), Y_leaves=self.apply(self.X_))
         else:
             return random_partition_kernel(self, X, Y=self.X_,
