@@ -63,7 +63,6 @@ def apply_until(tree, X, depth=-1):
     lands in when the tree is truncated at a depth = `depth`."""
     X = check_array(X, accept_sparse='csr')
 
-
     node_indicator = tree.decision_path(X)
     node_indices = get_leaf_nodes(tree, depth=depth)
 
