@@ -22,8 +22,32 @@ def node_similarity(X_nodes, Y_nodes=None):
 
 
 def get_leaf_nodes(tree, depth=-1, return_depths=False):
-    """Mask for selecting nodes at a given depth. If the tree is un-balanced
-    this could lead to multiple depths being used."""
+    """Return indices of nodes that become leaf nodes if a tree is truncated
+    at a given depth.
+
+    Parameters
+    ----------
+    tree : A class instance derived from `sklearn.tree.BaseDecisionTree`
+        The tree from which the node indices are derived.
+
+    depth : int, optional (default=-1)
+        The depth at which the tree is truncted. An integer betwen
+        [0, max_depth]. A depth of zero is the root node. A depth of -1 means
+        that the tree is not truncated and the leaf nodes are returned.
+
+    return_depths : bool, optional (default=False)
+        Whether to return an additional array indicating the depths of
+        the new leaf indices in the original tree. Unbalanced trees may
+        have leaf nodes of mixed depths.
+
+    Returns
+    -------
+    leaf_indices : array-like, shape = [n_leaves,]
+        Node indices of the new leaf nodes.
+
+    depths : array-like, shape = [n_leaves,]
+        Depths of leaf nodes in the original tree.
+    """
     max_depth = tree.tree_.max_depth
     children_left = tree.tree_.children_left
     children_right = tree.tree_.children_right
@@ -31,19 +55,19 @@ def get_leaf_nodes(tree, depth=-1, return_depths=False):
     if depth == -1 or depth > max_depth:
         depth = max_depth
 
-    node_mask = [0]
+    leaf_indices = [0]
     node_depths = [0]
     stack = [(0, -1, 0)]  # node_id, parent_depth, parent_id
     while len(stack) > 0:
         node_id, parent_depth, parent_id = stack.pop()
         if parent_depth + 1 <= depth:
             try:
-                parent_index = node_mask.index(parent_id)
-                node_mask.pop(parent_index)
+                parent_index = leaf_indices.index(parent_id)
+                leaf_nodes.pop(parent_index)
                 node_depths.pop(parent_index)
             except ValueError:
                 pass
-            node_mask.append(node_id)
+            leaf_nodes.append(node_id)
             node_depths.append(parent_depth + 1)
 
         # if we have a test node
@@ -52,15 +76,37 @@ def get_leaf_nodes(tree, depth=-1, return_depths=False):
             stack.append((children_right[node_id], parent_depth + 1, node_id))
 
     if return_depths:
-        sorted_indices = np.argsort(node_mask)
-        return (np.array(node_mask)[sorted_indices],
+        sorted_indices = np.argsort(leaf_nodes)
+        return (np.array(leaf_nodes)[sorted_indices],
                 np.array(node_depths)[sorted_indices])
-    return np.sort(node_mask)
+    return np.sort(leaf_nodes)
 
 
 def apply_until(tree, X, depth=-1):
-    """Return a node indicator matrix corresponding to the node a sample
-    lands in when the tree is truncated at a depth = `depth`."""
+    """Returns the leaf indicator matrix for a tree truncated at the
+    requested depth.
+
+    Parameters
+    ----------
+    tree : A class instance derived from `sklearn.tree.BaseDecisionTree`
+        The tree from which the node indices are derived.
+
+    X : array_like or sparse matrix, shape = [n_samples, n_features]
+        The input samples. Internally, it will be converted to
+        ``dtype=np.float32`` and if a sparse matrix is provided
+        to a sparse ``csr_matrix``.
+
+    depth : int, optional (default=-1)
+        The depth at which the tree is truncted. An integer betwen
+        [0, max_depth]. A depth of zero is the root node. A depth of -1 means
+        that the tree is not truncated and the leaf nodes are returned.
+
+    Returns
+    -------
+    indicator : sparse csr array, shape = [n_samples, n_leaves]
+        Return a leaf indicator matrix where non zero elements indicate
+        that the sample ended up in that leaf.
+    """
     X = check_array(X, accept_sparse='csr')
 
     node_indicator = tree.decision_path(X)
