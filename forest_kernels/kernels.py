@@ -47,7 +47,8 @@ def sample_depths(forest, random_state=123):
 
 def leaf_node_kernel(X_leaves, Y_leaves=None):
     """The leaf node kernel matrix induced by an ensemble of
-    decision trees.
+    decision trees. Also known as the connection function of the
+    random forest.
 
     An ensemble of trees (such as a random forest) can be viewed as a
     kernel-based model:
@@ -73,9 +74,9 @@ def leaf_node_kernel(X_leaves, Y_leaves=None):
         K(i, j) = --------------------------------------
                   Total number of trees in the forest.
 
-    Note that this similarity measure lies between 0 and 1. In addition,
-    this kernel will reproduce the predictions of the ensemble of trees
-    if used in the above kernel-based model.
+    Note that this similarity measure lies between 0 and 1. This quantity
+    can also be thought of as the empircal probability that x_i and x_j lie
+    in the same cell in the random foreset.
 
     Parameters
     ----------
@@ -171,11 +172,11 @@ def random_partition_kernel(forest, X, Y=None, tree_depths='random',
     n_samples_y = Y.shape[0] if Y is not None else n_samples_x
     kernel = np.zeros(shape=(n_samples_x, n_samples_y))
     for tree_idx, tree in enumerate(forest.estimators_):
-        node_indicator_X = tree_utils.apply_to_depth(
+        node_indicator_X = tree_utils.apply_until(
             tree, X, depth=tree_depths[tree_idx])
 
         if Y is not None:
-            node_indicator_Y = tree_utils.apply_to_depth(
+            node_indicator_Y = tree_utils.apply_until(
                 tree, Y, depth=tree_depths[tree_idx])
         else:
             node_indicator_Y = node_indicator_X
@@ -256,7 +257,6 @@ class BaseForestKernel(six.with_metaclass(ABCMeta,
                                           sample_weight=sample_weight)
 
         # fix the depths used when 'kernel_type == 'random'
-        self.X_leaves_ = self.apply(X)
         self.X_ = X_
         self.tree_depths_ = sample_depths(self, random_state=self.random_state)
 
@@ -281,7 +281,7 @@ class BaseForestKernel(six.with_metaclass(ABCMeta,
                              " Got `kernel_type = {}".format(kernel_type))
 
         if kernel_type == 'leaf':
-            return leaf_node_kernel(self.apply(X), Y_leaves=self.X_leaves_)
+            return leaf_node_kernel(self.apply(X), Y_leaves=self.apply(self.X_))
         else:
             return random_partition_kernel(self, X, Y=self.X_,
                                            tree_depths=self.tree_depths_,
