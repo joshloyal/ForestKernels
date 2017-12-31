@@ -263,7 +263,8 @@ class BaseForestKernel(six.with_metaclass(ABCMeta,
                     "The unsupervised kernels are not available for "
                     "regressors. Either provide a value for `y` or use one "
                     "of the following classes: {RandomForestClassifierKernel, "
-                    "ExtraTreesClassifierKernel}.")
+                    "ExtraTreesClassifierKernel} with "
+                    "sampling_methud='supervised'.")
             X_, y_ = generate_discriminative_dataset(
                 X, method=self.sampling_method)
 
@@ -272,12 +273,16 @@ class BaseForestKernel(six.with_metaclass(ABCMeta,
 
         # XXX: Should have the kernel between X or
         # X_ (argumenteed by synthetic data)
-        self.X_ = None if self.return_similarity else X
+        self.X_fit_ = None if self.return_similarity else X
 
         # fix the depths used when 'kernel_type == 'random_partitions'
         self.tree_depths_ = sample_depths(self, random_state=self.random_state)
 
         return self
+
+    def set_kernel_X(self, X):
+        """Set the data points that represent the features of the kernel."""
+        self.X_fit_ = X
 
     def fit_transform(self, X, y=None, **fit_params):
         self.fit(X, y=y, **fit_params)
@@ -299,10 +304,11 @@ class BaseForestKernel(six.with_metaclass(ABCMeta,
                              "Got `kernel_type = {}".format(kernel_type))
 
         if kernel_type == 'leaves':
-            Y_leaves = None if self.return_similarity else self.apply(self.X_)
+            Y_leaves = (None if self.return_similarity else
+                        self.apply(self.X_fit_))
             return leaf_node_kernel(self.apply(X), Y_leaves=Y_leaves)
         else:
-            return random_partitions_kernel(self, X, Y=self.X_,
+            return random_partitions_kernel(self, X, Y=self.X_fit_,
                                             tree_depths=self.tree_depths_,
                                             random_state=self.random_state)
 

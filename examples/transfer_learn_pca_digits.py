@@ -14,15 +14,15 @@ y = digits.target
 train_id = np.logical_or(y == 7, y == 9)
 test_id = np.logical_or(y == 3, y == 4)
 
-rf_kernel = forest_kernels.RandomForestClassifierKernel(
+rf_kernel = forest_kernels.ExtraTreesClassifierKernel(
     n_estimators=500,
     kernel_type='leaves',
     sampling_method='supervised',
-    return_similarity=True,
     n_jobs=-1,
     random_state=123).fit(X[train_id], y[train_id])
 
 # returns the RF similarity (kernel) between samples in a matrix
+rf_kernel.set_kernel_X(X[test_id])
 kernel_test = rf_kernel.transform(X[test_id])
 
 pca = KernelPCA(kernel='precomputed', n_components=2)

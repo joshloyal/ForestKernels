@@ -295,6 +295,39 @@ def test_kernel_type_classifier_return_similarity(kernel_type,
 
 
 @pytest.mark.parametrize('kernel_type', ['random_partitions', 'leaves'])
+def test_kernel_type_classifier_set_kernel_X(kernel_type,
+                                             ClassifierKernelClass):
+    """Test changing the data used to compute the kernel."""
+    X, _ = make_blobs(n_samples=150, random_state=123)
+    X_train, X_test = X[:100], X[100:]
+
+    # fit on training
+    kernel = ClassifierKernelClass(
+        kernel_type=kernel_type,
+        random_state=123)
+    kernel.fit(X_train)
+
+    # transfer kernel to testing
+    kernel.set_kernel_X(X_test)
+
+    # check shapes
+    K = kernel.transform(X_test)
+    assert K.shape == (50, 50)
+    assert np.min(K) >= 0.0
+    assert np.max(K) <= 1.0
+
+    # this kernel should match what happens when returning similarities
+    kernel = ClassifierKernelClass(
+        kernel_type=kernel_type,
+        return_similarity=True,
+        random_state=123)
+    kernel.fit(X_train)
+
+    K_sim = kernel.transform(X_test)
+    np.testing.assert_allclose(K, K_sim)
+
+
+@pytest.mark.parametrize('kernel_type', ['random_partitions', 'leaves'])
 def test_kernel_type_regressor(kernel_type, RegressorKernelClass):
     """simple tests over kernel_type for regressors."""
     boston = load_boston()
@@ -359,6 +392,43 @@ def test_kernel_type_regressor_return_similarity(kernel_type,
     assert K.shape == (106, 106)
     assert np.min(K) >= 0.0
     assert np.max(K) <= 1.0
+
+
+@pytest.mark.parametrize('kernel_type', ['random_partitions', 'leaves'])
+def test_kernel_type_regressor_set_kernel_X(kernel_type,
+                                            RegressorKernelClass):
+    """Test changing the data used to compute the kernel."""
+    boston = load_boston()
+
+    X_train, X_test = boston.data[:400], boston.data[400:]
+    y_train, y_test = boston.data[:400], boston.data[400:]
+
+    # fit on training
+    kernel = RegressorKernelClass(
+        kernel_type=kernel_type,
+        sampling_method='supervised',
+        random_state=123)
+    kernel.fit(X_train, y_train)
+
+    # transfer kernel to testing
+    kernel.set_kernel_X(X_test)
+
+    # check shapes
+    K = kernel.transform(X_test)
+    assert K.shape == (106, 106)
+    assert np.min(K) >= 0.0
+    assert np.max(K) <= 1.0
+
+    # this kernel should match what happens when returning similarities
+    kernel = RegressorKernelClass(
+        kernel_type=kernel_type,
+        sampling_method='supervised',
+        return_similarity=True,
+        random_state=123)
+    kernel.fit(X_train, y_train)
+
+    K_sim = kernel.transform(X_test)
+    np.testing.assert_allclose(K, K_sim)
 
 
 @pytest.mark.parametrize('sampling_method', ['uniform', 'bootstrap'])
