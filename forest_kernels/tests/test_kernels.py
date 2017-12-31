@@ -103,6 +103,7 @@ def test_leaf_node_kernel_balanced(balanced_data, ClassifierKernelClass):
     forest = ClassifierKernelClass(
         n_estimators=3,
         kernel_type='leaves',
+        sampling_method='supervised',
         random_state=123)
     K = forest.fit_transform(X, y)
 
@@ -123,6 +124,7 @@ def test_leaf_node_kernel_unbalanced(unbalanced_data):
     forest = RandomForestClassifierKernel(
         n_estimators=3,
         kernel_type='leaves',
+        sampling_method='supervised',
         random_state=123)
     K = forest.fit_transform(X, y)
 
@@ -174,6 +176,7 @@ def test_random_partitions_kernel_balanced(balanced_data,
     forest = ClassifierKernelClass(
         n_estimators=3,
         kernel_type='random_partitions',
+        sampling_method='supervised',
         random_state=123)
     K = forest.fit_transform(X, y)
 
@@ -197,6 +200,7 @@ def test_random_partitions_kernel_unbalanced(unbalanced_data):
     forest = RandomForestClassifierKernel(
         n_estimators=3,
         kernel_type='random_partitions',
+        sampling_method='supervised',
         random_state=123)
     K = forest.fit_transform(X, y)
 
@@ -269,6 +273,7 @@ def test_kernel_type_regressor(kernel_type, RegressorKernelClass):
 
     kernel = RegressorKernelClass(n_estimators=3,
                                   kernel_type=kernel_type,
+                                  sampling_method='supervised',
                                   random_state=123)
 
     # fit_transform pipeline

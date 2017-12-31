@@ -252,7 +252,7 @@ class BaseForestKernel(six.with_metaclass(ABCMeta,
             # ensemble sorting the indices.
             X.sort_indices()
 
-        if y is not None:
+        if y is not None and self.sampling_method == 'supervised':
             X_ = X
             y_ = y
         else:
