@@ -215,6 +215,7 @@ class BaseForestKernel(six.with_metaclass(ABCMeta,
                  oob_score=False,
                  kernel_type='random_partitions',
                  sampling_method='bootstrap',
+                 return_similarity=False,
                  n_jobs=1,
                  random_state=None,
                  verbose=0,
@@ -235,6 +236,7 @@ class BaseForestKernel(six.with_metaclass(ABCMeta,
 
         self.kernel_type = kernel_type
         self.sampling_method = sampling_method
+        self.return_similarity = return_similarity
 
     def _set_oob_score(self, X, y):
         raise NotImplementedError("OOB score not supported in tree embedding")
@@ -270,7 +272,7 @@ class BaseForestKernel(six.with_metaclass(ABCMeta,
 
         # XXX: Should have the kernel between X or
         # X_ (argumenteed by synthetic data)
-        self.X_ = X
+        self.X_ = None if self.return_similarity else X
 
         # fix the depths used when 'kernel_type == 'random_partitions'
         self.tree_depths_ = sample_depths(self, random_state=self.random_state)
@@ -297,7 +299,8 @@ class BaseForestKernel(six.with_metaclass(ABCMeta,
                              "Got `kernel_type = {}".format(kernel_type))
 
         if kernel_type == 'leaves':
-            return leaf_node_kernel(self.apply(X), Y_leaves=self.apply(self.X_))
+            Y_leaves = None if self.return_similarity else self.apply(self.X_)
+            return leaf_node_kernel(self.apply(X), Y_leaves=Y_leaves)
         else:
             return random_partitions_kernel(self, X, Y=self.X_,
                                             tree_depths=self.tree_depths_,
@@ -335,6 +338,7 @@ class RandomForestClassifierKernel(BaseForestKernel):
                  bootstrap=True,
                  kernel_type='random_partitions',
                  sampling_method='bootstrap',
+                 return_similarity=False,
                  n_jobs=1,
                  random_state=None,
                  verbose=0,
@@ -351,6 +355,7 @@ class RandomForestClassifierKernel(BaseForestKernel):
             bootstrap=bootstrap,
             kernel_type=kernel_type,
             sampling_method=sampling_method,
+            return_similarity=return_similarity,
             oob_score=False,
             n_jobs=n_jobs,
             random_state=random_state,
@@ -400,6 +405,7 @@ class RandomForestRegressorKernel(BaseForestKernel):
                  bootstrap=True,
                  kernel_type='random_partitions',
                  sampling_method='bootstrap',
+                 return_similarity=False,
                  n_jobs=1,
                  random_state=None,
                  verbose=0,
@@ -416,6 +422,7 @@ class RandomForestRegressorKernel(BaseForestKernel):
             oob_score=False,
             kernel_type=kernel_type,
             sampling_method=sampling_method,
+            return_similarity=return_similarity,
             n_jobs=n_jobs,
             random_state=random_state,
             verbose=verbose,
@@ -463,6 +470,7 @@ class ExtraTreesClassifierKernel(BaseForestKernel):
                  bootstrap=True,
                  kernel_type='random_partitions',
                  sampling_method='bootstrap',
+                 return_similarity=False,
                  n_jobs=1,
                  random_state=None,
                  verbose=0,
@@ -479,6 +487,7 @@ class ExtraTreesClassifierKernel(BaseForestKernel):
             oob_score=False,
             kernel_type=kernel_type,
             sampling_method=sampling_method,
+            return_similarity=return_similarity,
             n_jobs=n_jobs,
             random_state=random_state,
             verbose=verbose,
@@ -526,6 +535,7 @@ class ExtraTreesRegressorKernel(BaseForestKernel):
                  bootstrap=True,
                  kernel_type='random_partitions',
                  sampling_method='bootstrap',
+                 return_similarity=False,
                  n_jobs=1,
                  random_state=None,
                  verbose=0,
@@ -542,6 +552,7 @@ class ExtraTreesRegressorKernel(BaseForestKernel):
             oob_score=False,
             kernel_type=kernel_type,
             sampling_method=sampling_method,
+            return_similarity=return_similarity,
             n_jobs=n_jobs,
             random_state=random_state,
             verbose=verbose,

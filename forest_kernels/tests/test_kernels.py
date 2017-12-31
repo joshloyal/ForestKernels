@@ -264,6 +264,37 @@ def test_kernel_type_classifier(kernel_type, ClassifierKernelClass):
 
 
 @pytest.mark.parametrize('kernel_type', ['random_partitions', 'leaves'])
+def test_kernel_type_classifier_return_similarity(kernel_type,
+                                                  ClassifierKernelClass):
+    """simple tests over kernel type when returning similarities"""
+    X, _ = make_blobs(n_samples=150, random_state=123)
+    X_train, X_test = X[:100], X[100:]
+
+    kernel = ClassifierKernelClass(
+        kernel_type=kernel_type,
+        return_similarity=True,
+        random_state=123)
+
+    # fit_transform pipeline
+    K = kernel.fit_transform(X_train)
+    assert K.shape == (100, 100)
+    assert np.min(K) >= 0.0
+    assert np.max(K) <= 1.0
+
+    # fit then transform seperatly
+    kernel.fit(X_train)
+
+    # kernel's should match
+    np.testing.assert_allclose(K, kernel.transform(X_train))
+
+    # check new data makes sense
+    K = kernel.transform(X_test)
+    assert K.shape == (50, 50)
+    assert np.min(K) >= 0.0
+    assert np.max(K) <= 1.0
+
+
+@pytest.mark.parametrize('kernel_type', ['random_partitions', 'leaves'])
 def test_kernel_type_regressor(kernel_type, RegressorKernelClass):
     """simple tests over kernel_type for regressors."""
     boston = load_boston()
@@ -291,6 +322,41 @@ def test_kernel_type_regressor(kernel_type, RegressorKernelClass):
     # check new data makes sense
     K = kernel.transform(X_test)
     assert K.shape == (106, 400)
+    assert np.min(K) >= 0.0
+    assert np.max(K) <= 1.0
+
+
+@pytest.mark.parametrize('kernel_type', ['random_partitions', 'leaves'])
+def test_kernel_type_regressor_return_similarity(kernel_type,
+                                                 RegressorKernelClass):
+    """simple tests over kernel_type for regressors when returning
+    similarity matrices."""
+    boston = load_boston()
+
+    X_train, X_test = boston.data[:400], boston.data[400:]
+    y_train, y_test = boston.data[:400], boston.data[400:]
+
+    kernel = RegressorKernelClass(n_estimators=3,
+                                  kernel_type=kernel_type,
+                                  sampling_method='supervised',
+                                  return_similarity=True,
+                                  random_state=123)
+
+    # fit_transform pipeline
+    K = kernel.fit_transform(X_train, y_train)
+    assert K.shape == (400, 400)
+    assert np.min(K) >= 0.0
+    assert np.max(K) <= 1.0
+
+    # fit then transform seperatly
+    kernel.fit(X_train, y_train)
+
+    # kernel's should match
+    np.testing.assert_allclose(K, kernel.transform(X_train))
+
+    # check new data makes sense
+    K = kernel.transform(X_test)
+    assert K.shape == (106, 106)
     assert np.min(K) >= 0.0
     assert np.max(K) <= 1.0
 

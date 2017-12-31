@@ -15,8 +15,9 @@ X_train, X_test, y_train, y_test = train_test_split(
 rf_kernel_svc = make_pipeline(
     ExtraTreesClassifierKernel(
         n_estimators=500,
-        kernel_type='leaves',
+        kernel_type='random_partitions',
         sampling_method='bootstrap',
+        n_jobs=-1,
         random_state=123),
     SVC(kernel='precomputed')
 )
