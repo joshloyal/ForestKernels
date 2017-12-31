@@ -26,6 +26,14 @@ __all__ = ['BaseForestKernel',
            'ExtraTreesClassifierKernel', 'ExtraTreesRegressorKernel']
 
 
+def depth_sampler(tree, random_state=123):
+    """Sample possible depths to truncated a tree."""
+    tree_depth = tree.tree_.max_depth
+    if tree_depth == 0:
+        return -1
+    return random_state.choice(range(1, tree_depth + 1))
+
+
 def sample_depths(forest, random_state=123):
     """Randomly sample depths from a forest of decision trees. The root
     depth (index zero) is excluded.
@@ -41,8 +49,7 @@ def sample_depths(forest, random_state=123):
         A list of depths sampled for the tree at that index.
     """
     random_state = check_random_state(random_state)
-    return [random_state.choice(range(1, tree.tree_.max_depth + 1))
-            for tree in forest.estimators_]
+    return [depth_sampler(tree, random_state) for tree in forest.estimators_]
 
 
 def leaf_node_kernel(X_leaves, Y_leaves=None):
@@ -165,6 +172,10 @@ def random_partition_kernel(forest, X, Y=None, tree_depths='random',
            other kernels for big data from random partitions",
            CoRR, 2014.
     """
+    X = check_array(X, accept_sparse='csc')
+    if Y is not None:
+        Y = check_array(Y, accept_sparse='csr')
+
     if tree_depths == 'random':
         tree_depths = sample_depths(forest, random_state=random_state)
 
@@ -257,8 +268,11 @@ class BaseForestKernel(six.with_metaclass(ABCMeta,
         super(BaseForestKernel, self).fit(X_, y_,
                                           sample_weight=sample_weight)
 
+        # XXX: Should have the kernel between X or
+        # X_ (argumenteed by synthetic data)
+        self.X_ = X
+
         # fix the depths used when 'kernel_type == 'random_partitions'
-        self.X_ = X_
         self.tree_depths_ = sample_depths(self, random_state=self.random_state)
 
         return self
