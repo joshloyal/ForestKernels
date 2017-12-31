@@ -120,8 +120,8 @@ def leaf_node_kernel(X_leaves, Y_leaves=None):
     return 1 - pairwise_distances(X_leaves, Y=Y_leaves, metric='hamming')
 
 
-def random_partition_kernel(forest, X, Y=None, tree_depths='random',
-                            random_state=123):
+def random_partitions_kernel(forest, X, Y=None, tree_depths='random',
+                             random_state=123):
     """Random Partition Kernel induced by an ensemble of decision trees.
 
     A random partition kernel is a kernel-function induced by a distribution
@@ -283,9 +283,9 @@ class BaseForestKernel(six.with_metaclass(ABCMeta,
         if self.kernel_type == 'leaves':
             return leaf_node_kernel(self.apply(X))
         else:
-            return random_partition_kernel(self, X,
-                                           tree_depths=self.tree_depths_,
-                                           random_state=self.random_state)
+            return random_partitions_kernel(self, X,
+                                            tree_depths=self.tree_depths_,
+                                            random_state=self.random_state)
 
     def transform(self, X, kernel_type=None):
         if kernel_type is None:
@@ -299,9 +299,9 @@ class BaseForestKernel(six.with_metaclass(ABCMeta,
         if kernel_type == 'leaves':
             return leaf_node_kernel(self.apply(X), Y_leaves=self.apply(self.X_))
         else:
-            return random_partition_kernel(self, X, Y=self.X_,
-                                           tree_depths=self.tree_depths_,
-                                           random_state=self.random_state)
+            return random_partitions_kernel(self, X, Y=self.X_,
+                                            tree_depths=self.tree_depths_,
+                                            random_state=self.random_state)
 
 
 class RandomForestClassifierKernel(BaseForestKernel):
@@ -333,7 +333,7 @@ class RandomForestClassifierKernel(BaseForestKernel):
                  min_impurity_decrease=0.,
                  min_impurity_split=None,
                  bootstrap=True,
-                 kernel_type='random',
+                 kernel_type='random_partitions',
                  sampling_method='bootstrap',
                  n_jobs=1,
                  random_state=None,
@@ -398,7 +398,7 @@ class RandomForestRegressorKernel(BaseForestKernel):
                  min_impurity_decrease=0.,
                  min_impurity_split=None,
                  bootstrap=True,
-                 kernel_type='random',
+                 kernel_type='random_partitions',
                  sampling_method='bootstrap',
                  n_jobs=1,
                  random_state=None,
@@ -461,7 +461,7 @@ class ExtraTreesClassifierKernel(BaseForestKernel):
                  min_impurity_decrease=0.,
                  min_impurity_split=None,
                  bootstrap=True,
-                 kernel_type='random',
+                 kernel_type='random_partitions',
                  sampling_method='bootstrap',
                  n_jobs=1,
                  random_state=None,
@@ -524,7 +524,7 @@ class ExtraTreesRegressorKernel(BaseForestKernel):
                  min_impurity_decrease=0.,
                  min_impurity_split=None,
                  bootstrap=True,
-                 kernel_type='random',
+                 kernel_type='random_partitions',
                  sampling_method='bootstrap',
                  n_jobs=1,
                  random_state=None,

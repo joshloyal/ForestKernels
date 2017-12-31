@@ -166,9 +166,73 @@ def test_leaf_node_kernel_matches_decision_tree():
     np.testing.assert_allclose(k_pred, y_pred)
 
 
+def test_random_partitions_kernel_balanced(balanced_data,
+                                           ClassifierKernelClass):
+    """Test the balanced forest has a block diagnol kernel."""
+    X, y = balanced_data
+
+    forest = ClassifierKernelClass(
+        n_estimators=3,
+        kernel_type='random_partitions',
+        random_state=123)
+    K = forest.fit_transform(X, y)
+
+    # the trees in the forest are stumps and able to split
+    # on the first feature perfectly.
+    # So we should perfectly classify the samples.
+    K_expected = np.array([[1, 1, 1, 0, 0, 0],
+                           [1, 1, 1, 0, 0, 0],
+                           [1, 1, 1, 0, 0, 0],
+                           [0, 0, 0, 1, 1, 1],
+                           [0, 0, 0, 1, 1, 1],
+                           [0, 0, 0, 1, 1, 1]])
+    np.testing.assert_allclose(K, K_expected)
+
+
+def test_random_partitions_kernel_unbalanced(unbalanced_data):
+    """Test the ubalanced forest. More of a smoke test than anything."""
+    X, y = unbalanced_data
+
+    # extra trees chooses a different variable to split, so just use RF
+    forest = RandomForestClassifierKernel(
+        n_estimators=3,
+        kernel_type='random_partitions',
+        random_state=123)
+    K = forest.fit_transform(X, y)
+
+    K_expected = np.array([[ 1.        ,  1.        ,  1.        ,
+                             0.33333333,  0.33333333,  0.33333333,
+                             0.33333333,  0.33333333,  0.33333333],
+                             [ 1.        ,  1.        ,  1.        ,
+                             0.33333333,  0.33333333,  0.33333333,
+                             0.33333333,  0.33333333,  0.33333333],
+                             [ 1.        ,  1.        ,  1.        ,
+                             0.33333333,  0.33333333,  0.33333333,
+                             0.33333333,  0.33333333,  0.33333333],
+                             [ 0.33333333,  0.33333333,  0.33333333,
+                             1.        ,  1.        ,  0.66666667,
+                             1.        ,  0.66666667,  1.        ],
+                             [ 0.33333333,  0.33333333,  0.33333333,
+                             1.        ,  1.        ,  0.66666667,
+                             1.        ,  0.66666667,  1.        ],
+                             [ 0.33333333,  0.33333333,  0.33333333,
+                             0.66666667,  0.66666667,  1.        ,
+                             0.66666667,  1.        ,  0.66666667],
+                             [ 0.33333333,  0.33333333,  0.33333333,
+                             1.        ,  1.        ,  0.66666667,
+                             1.        ,  0.66666667,  1.        ],
+                             [ 0.33333333,  0.33333333,  0.33333333,
+                             0.66666667,  0.66666667,  1.        ,
+                             0.66666667,  1.        ,  0.66666667],
+                             [ 0.33333333,  0.33333333,  0.33333333,
+                             1.        ,  1.        ,  0.66666667,
+                             1.        ,  0.66666667,  1.        ]])
+    np.testing.assert_allclose(K, K_expected)
+
+
 @pytest.mark.parametrize('kernel_type', ['random_partitions', 'leaves'])
 def test_kernel_type_classifier(kernel_type, ClassifierKernelClass):
-    """Smoke test over kernel type for a typical pipeline."""
+    """simple tests over kernel type for a typical pipeline."""
     X, _ = make_blobs(n_samples=150, random_state=123)
     X_train, X_test = X[:100], X[100:]
 
@@ -197,6 +261,7 @@ def test_kernel_type_classifier(kernel_type, ClassifierKernelClass):
 
 @pytest.mark.parametrize('kernel_type', ['random_partitions', 'leaves'])
 def test_kernel_type_regressor(kernel_type, RegressorKernelClass):
+    """simple tests over kernel_type for regressors."""
     boston = load_boston()
 
     X_train, X_test = boston.data[:400], boston.data[400:]
@@ -223,3 +288,12 @@ def test_kernel_type_regressor(kernel_type, RegressorKernelClass):
     assert K.shape == (106, 400)
     assert np.min(K) >= 0.0
     assert np.max(K) <= 1.0
+
+
+@pytest.mark.parametrize('sampling_method', ['uniform', 'bootstrap'])
+def test_regressors_error_without_target(sampling_method, RegressorKernelClass):
+    """Regressors currently have no fake data generation method."""
+    boston = load_boston()
+
+    with pytest.raises(ValueError):
+        RegressorKernelClass(random_state=123).fit(boston.data)
